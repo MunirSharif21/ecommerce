@@ -16,14 +16,10 @@ def current_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def login():
-    # Create ChromeOptions object
     chrome_options = Options()
-
-    # Set headless mode to True
-    chrome_options.headless = False
-
-    # Create WebDriver instance with headless mode enabled
+    chrome_options.add_argument("profile-directory=PHARMA")
     driver = webdriver.Chrome(options=chrome_options)
+
     driver.get("https://www.aah.co.uk/s/signin")
     print(current_time(), 'Loading Signin Page')
 
@@ -39,7 +35,6 @@ def login():
     print(current_time(), 'Filling Credentials')
     username_field = driver.find_element(By.XPATH, "//input[@id='input-4']")
     password_field = driver.find_element(By.XPATH, "//input[@id='input-5']")
-
     username_field.send_keys("Rachel1966")
     password_field.send_keys("W1ndmillh2@")
     print(current_time(), 'Submitting Credentials')
@@ -47,24 +42,21 @@ def login():
     # Submit the login form
     submit_button = driver.find_element(By.CSS_SELECTOR, "button[class*='primary-button']")
     submit_button.click()
-
-    time.sleep(20)
-    print(current_time(), 'Loading All Product Page')
+    time.sleep(10)
 
     # Navigate to the next URL
+    print(current_time(), 'Loading All Product Page')
     driver.get("https://www.enterpriseotc.co.uk/enterprise/AllProducts")
-
     time.sleep(2)
 
-    # Scroll down
+    # Scroll down and accept cookies
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
     print(current_time(), 'Accepting Cookies')
-
-    # Click the button
     click_button = WebDriverWait(driver, 10).until(
         EC.element_to_be_clickable((By.ID, "onetrust-accept-btn-handler"))
     )
     click_button.click()
+    time.sleep(5)
 
     time.sleep(10)
     print(current_time(), 'Finding More Products')
@@ -78,78 +70,60 @@ def login():
     wait.until(EC.presence_of_element_located((By.XPATH, '//*[contains(text(), "Load next 20 products")]')))
 
     # Retrieve the cookie headers from the request
-    requestss = driver.requests
+    return hijack(driver.requests)
 
-    for request in requestss:
+def hijack(sel_requests):
+    for request in sel_requests:
         if request.method == 'POST':
-            if 'findProduct' in request.body.decode('utf-8'):
-                print(current_time(), 'Hijacking findProduct')
-                headers = request.headers
-                method = request.method
-                payload = request.body.decode('utf-8')
-
-                curl_request = f"curl -X {method} "
-                for header in headers:
-                    curl_request += f"-H '{header}: {headers[header]}' "
-                curl_request += f"-d '{payload}' 'https://www.enterpriseotc.co.uk/enterprise/apexremote'"
-                findProductHeader = headers
-                findProductPayload = payload
-
             if 'findMore' in request.body.decode('utf-8'):
-                print('---------------------------------')
                 print(current_time(), 'Hijacking findMore')
-
                 headers = request.headers
-                method = request.method
                 payload = request.body.decode('utf-8')
 
-                curl_request = f"curl -X {method} "
+                payload_dict = json.loads(payload) # load payload str as dict
+                payload_data = payload_dict["data"][1] # access payload data
+                data = json.loads(payload_data) # load str as dict
 
-                for header in headers:
-                    curl_request += f"-H '{header}: {headers[header]}' "
-                curl_request += f"-d '{payload}' 'https://www.enterpriseotc.co.uk/enterprise/apexremote'"
-                findMoreHeader = headers
-                findMorePayload = payload
-    return findMoreHeader, findMorePayload, findProductHeader, findProductPayload
-    
+                index_secondary = data["prodCurrentIndex"]["secondary"]
+                
+    return findMore(headers, payload, index_secondary)
 
-def findmore(findMoreHeader, findMorePayload, index_secondary):
-    # Replace the 'secondary' value in the payload
-    print(current_time(), f"Old Secondary: {index_secondary}")
-    payload_dict = json.loads(findMorePayload)
-    data_list = payload_dict["data"]
+def findMore(headers, payload, index_secondary):
+    """
+    This function automatically open pages with 1000 visible products
+    and inserts them into the catalog.vendor_aah table if they are
+    not already there, else the data for that product is updated
+    """
+    payload_dict = json.loads(payload) # load payload str as dict
+    payload_data = payload_dict["data"][1] # access payload data
+    new_data = json.loads(payload_data) # load str as dict
 
-    for item in data_list:
-        if isinstance(item, str):
-            data_dict = json.loads(item)
-            data_dict["prodCurrentIndex"]["secondary"] = index_secondary
-            data_dict["prodLimit"] = 1000
-            updated_item = json.dumps(data_dict)
-            data_list[data_list.index(item)] = updated_item
+    new_data["prodCurrentIndex"]["secondary"] = index_secondary # replace previous value
+    new_data["prodLimit"] = 1000 # increase page limit for visible products
 
-    updated_payload = json.dumps(payload_dict)
+    payload_data = json.dumps(new_data) # dump modified data into our payload
 
     # Send the POST request
     response = requests.post(url='https://www.enterpriseotc.co.uk/enterprise/apexremote',
-                             headers=findMoreHeader,
-                             data=updated_payload)
+                             headers=headers,
+                             data=payload_data)
 
     # Check if the response data contains "statusCode": 402
     response_data = json.loads(response.text)
 
     if response_data[0]["statusCode"] == 402:
         print(current_time(), "Received statusCode 402. Restarting...")
-        if not hasattr(findmore, 'restart_attempted'):
-            findmore.restart_attempted = True
+        if not hasattr(findMore, 'restart_attempted'):
+            findMore.restart_attempted = True
             main()  # Restart the process by calling the main function
-            return  # Return to stop the current execution of findmore
+            return  # Return to stop the current execution of findMore
 
     # Reset the restart_attempted flag if it was set before
-    if hasattr(findmore, 'restart_attempted'):
-        delattr(findmore, 'restart_attempted')
+    if hasattr(findMore, 'restart_attempted'):
+        delattr(findMore, 'restart_attempted')
     
-    index_secondary = response_data[0]["result"]["data"]["v"]["prodCurrentIndex"]["v"]["secondary"]
-    print(current_time(), f"New Index: {index_secondary}")
+    # get a new index_secondary
+    index_secondary = response_data[0]['result']['data']['v']['prodCurrentIndex']['v']['secondary']
     product_list = response_data[0]['result']['data']['v']['productList']['v']
 
     db = mysql.connector.connect(
@@ -237,30 +211,13 @@ def findmore(findMoreHeader, findMorePayload, index_secondary):
 
     db.commit() # save changes
     db.close() # close connection
-    return index_secondary
 
-def findproduct(findProductHeader,findProductPayload):
-    print(current_time(), 'Posting FindProduct Request')
-    response = requests.post(url = 'https://www.enterpriseotc.co.uk/enterprise/apexremote', headers=findProductHeader, data=findProductPayload)
-    response_data = json.loads(response.text)
-    # Process the response as needed
-    index_secondary = response_data[0]["result"]["data"]["v"]["prodCurrentIndex"]["v"]["secondary"]
-    print(current_time(), f"Index Secondary: {index_secondary}")
-    return index_secondary
+    time.sleep(5)
+
+    return findMore(headers, payload, index_secondary)
 
 def main():
-    # Call the login function to retrieve the headers and payload
-    findMoreHeader, findMorePayload, findProductHeader, findProductPayload = login()
-    print('---------------------------------')
-
-    index_secondary = findproduct(findProductHeader, findProductPayload)
-    print('---------------------------------')
-
-    while True:
-        index_secondary = findmore(findMoreHeader, findMorePayload, index_secondary)
-
-        # Wait for a while before making the next request
-        time.sleep(10)
+    login()
 
 if __name__ == "__main__":
     main()
