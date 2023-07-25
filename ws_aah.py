@@ -74,19 +74,18 @@ def login():
 
 def hijack(sel_requests):
     for request in sel_requests:
-        if request.method == 'POST':
-            if 'findMore' in request.body.decode('utf-8'):
-                print(current_time(), 'Hijacking findMore')
-                headers = request.headers
-                payload = request.body.decode('utf-8')
+        if request.method == 'POST' and 'findMore' in request.body.decode('utf-8'):
+            print(current_time(), 'Hijacking findMore')
+            
+            headers = request.headers
+            payload = request.body.decode('utf-8')
 
-                payload_dict = json.loads(payload) # load payload str as dict
-                payload_data = payload_dict["data"][1] # access payload data
-                data = json.loads(payload_data) # load str as dict
+            payload_dict = json.loads(payload) # load payload str as dict
+            payload_data = payload_dict["data"][1] # access payload data
+            data = json.loads(payload_data) # load str as dict
 
-                index_secondary = data["prodCurrentIndex"]["secondary"]
-                
-    return findMore(headers, payload, index_secondary)
+            index_secondary = data["prodCurrentIndex"]["secondary"]
+            return findMore(headers, payload, index_secondary)
 
 def findMore(headers, payload, index_secondary):
     """
