@@ -232,7 +232,7 @@ def findmore(findMoreHeader, findMorePayload, index_secondary):
                            outer_quantity,
                            sku,
                            last_update
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (name, barcode, price, trade_price, mrrp, available, min_quantity, outer_quantity, sku, last_update))
 
     db.commit() # save changes
