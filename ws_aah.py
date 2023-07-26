@@ -80,32 +80,42 @@ def hijack(sel_requests):
             headers = request.headers
             payload = request.body.decode('utf-8')
 
-            payload_dict = json.loads(payload) # load payload str as dict
-            payload_data = payload_dict["data"][1] # access payload data
-            data = json.loads(payload_data) # load str as dict
+            payload_dict = json.loads(payload) # open payload as dict
+            data_list = payload_dict["data"] # extract data from payload
+            data_dict = json.loads(data_list[1]) # access dict within payload data
 
-            index_secondary = data["prodCurrentIndex"]["secondary"]
-            return findMore(headers, payload, index_secondary)
+            index_secondary = data_dict["prodCurrentIndex"]["secondary"] # extract index secondary
+            data_dict["prodLimit"] = 1000 # increase product limit
 
-def findMore(headers, payload, index_secondary):
+            updated_item = json.dumps(data_dict) # pack the data json back up
+            data_list[1] = updated_item
+
+            updated_payload = json.dumps(payload_dict)
+
+            return findMore(headers, updated_payload, index_secondary)
+
+def findMore(headers, updated_payload, index_secondary):
     """
     This function automatically open pages with 1000 visible products
     and inserts them into the catalog.vendor_aah table if they are
     not already there, else the data for that product is updated
     """
-    payload_dict = json.loads(payload) # load payload str as dict
-    payload_data = payload_dict["data"][1] # access payload data
-    new_data = json.loads(payload_data) # load str as dict
+    payload_dict = json.loads(updated_payload)
+    data_list = payload_dict["data"]
+    data_dict = json.loads(data_list[1])
 
-    new_data["prodCurrentIndex"]["secondary"] = index_secondary # replace previous value
-    new_data["prodLimit"] = 1000 # increase page limit for visible products
+    data_dict["prodCurrentIndex"]["secondary"] = index_secondary # replace previous value
+    data_dict["prodLimit"] = 1000 # increase page limit for visible products
 
-    payload_data = json.dumps(new_data) # dump modified data into our payload
+    updated_item = json.dumps(data_dict) # pack the data json back up
+    data_list[1] = updated_item
+
+    updated_payload = json.dumps(payload_dict)
 
     # Send the POST request
     response = requests.post(url='https://www.enterpriseotc.co.uk/enterprise/apexremote',
                              headers=headers,
-                             data=payload_data)
+                             data=updated_payload)
 
     # Check if the response data contains "statusCode": 402
     response_data = json.loads(response.text)
@@ -210,10 +220,8 @@ def findMore(headers, payload, index_secondary):
 
     db.commit() # save changes
     db.close() # close connection
-
-    time.sleep(5)
-
-    return findMore(headers, payload, index_secondary)
+    print(current_time(), "loading next page...")
+    return findMore(headers, updated_payload, index_secondary)
 
 def main():
     login()
