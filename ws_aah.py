@@ -158,8 +158,8 @@ def findMore(headers, updated_payload, index_secondary):
                    )
                    """)
 
-    # Print the desired values for each product
     for product in product_list:
+        # dont add products to the db if they dont have a barcode
         barcode = product['v'].get('EAN1') or product['v'].get('EAN2')
         if not barcode:
             continue
@@ -188,20 +188,60 @@ def findMore(headers, updated_payload, index_secondary):
                     WHERE barcode = %s
                     """, (barcode, ))
         
-        exist = cursor.fetchone()
+        product = cursor.fetchone() # contains the existing product data as a tuple
 
-        if exist:
-            cursor.execute("""
-                        UPDATE vendor_aah
-                           SET price = %s,
-                           trade_price = %s,
-                           mrrp = %s,
-                           available = %s,
-                           min_quantity = %s,
-                           outer_quantity = %s,
-                           last_update = %s
-                        WHERE barcode = %s
-                        """, (price, trade_price, mrrp, available, min_quantity, outer_quantity, last_update, barcode))
+        if product:
+            # this product exists in the vendor_aah table
+            # generate a dynamic sql query to update the values for a product if they have changed
+            query = "UPDATE vendor_aah SET "
+            values = []
+
+            for index, item in enumerate(product):
+                match index:
+                    case 0:
+                        print("CHECKING PRODUCT: ", item)
+                    case 2:
+                        if item != price:
+                            print(f"PRICE | OLD: {item} -> NEW: {price}")
+                            query += "price = %s, "
+                            values.append(price)
+                    case 3:
+                        if item != trade_price:
+                            print(f"TRADE PRICE | OLD: {item} -> NEW: {trade_price}")
+                            query += "trade_price = %s, "
+                            values.append(trade_price)
+                    case 4:
+                        if item != mrrp:
+                            print(f"MRRP | OLD: {item} -> NEW: {mrrp}")
+                            query += "mrrp = %s, "
+                            values.append(mrrp)
+                    case 5:
+                        if item != available:
+                            print(f"AVAILABILITY | OLD: {item} -> NEW: {available}")
+                            query += "available = %s, "
+                            values.append(available)
+                    case 6:
+                        if item != min_quantity:
+                            print(f"MINIMUM QUANTITY | OLD: {item} -> NEW: {min_quantity}")
+                            query += "min_quantity = %s, "
+                            values.append(min_quantity)
+                    case 7:
+                        if item != outer_quantity:
+                            print(f"OUTER QUANTITY | OLD: {item} -> NEW: {outer_quantity}")
+                            query += "outer_quantity = %s, "
+                            values.append(outer_quantity)
+            print('\n')
+
+            if values: # if there are changes...
+                # only change the last_update value if another field was updated
+                print(f"LAST UPDATE | OLD: {item} -> NEW: {last_update}")
+                query += "last_update = %s"
+                values.append(last_update)
+
+                query += " WHERE barcode = %s"
+                values.append(barcode)
+
+                cursor.execute(query, tuple(values))
         else:
             cursor.execute("""
                         INSERT INTO vendor_aah (
