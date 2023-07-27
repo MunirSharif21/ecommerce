@@ -146,21 +146,21 @@ def findMore(headers, updated_payload, index_secondary):
     cursor.execute("""
                    CREATE TABLE IF NOT EXISTS vendor_aah (
                    name VARCHAR(255),
-                   barcode VARCHAR(255) UNIQUE,
+                   barcode VARCHAR(255),
                    price FLOAT,
                    trade_price FLOAT,
                    mrrp FLOAT,
                    available BOOLEAN,
                    min_quantity INT,
                    outer_quantity INT,
-                   sku VARCHAR(255),
+                   sku VARCHAR(255) UNIQUE,
                    last_update DATETIME
                    )
                    """)
 
     for product in product_list:
         name = product['v']['sfdcName']
-        barcode = "" + (product['v'].get('EAN1') or product['v'].get('EAN2'))
+        barcode = product['v'].get('EAN1', '') or product['v'].get('EAN2', '')
         price = product['v']['MRRP']
 
         available = product['v']['availabilityMessage']
@@ -242,7 +242,7 @@ def findMore(headers, updated_payload, index_secondary):
                 query += " WHERE sku = %s"
                 values.append(sku)
 
-                cursor.execute(query, (values, ))
+                cursor.execute(query, tuple(values))
         else:
             cursor.execute("""
                         INSERT INTO vendor_aah (
