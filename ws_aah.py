@@ -159,12 +159,8 @@ def findMore(headers, updated_payload, index_secondary):
                    """)
 
     for product in product_list:
-        # dont add products to the db if they dont have a barcode
-        barcode = product['v'].get('EAN1') or product['v'].get('EAN2')
-        if not barcode:
-            continue
-
         name = product['v']['sfdcName']
+        barcode = "" + (product['v'].get('EAN1') or product['v'].get('EAN2'))
         price = product['v']['MRRP']
 
         available = product['v']['availabilityMessage']
@@ -185,8 +181,8 @@ def findMore(headers, updated_payload, index_secondary):
         cursor.execute("""
                     SELECT *
                     FROM vendor_aah
-                    WHERE barcode = %s
-                    """, (barcode, ))
+                    WHERE sku = %s
+                    """, (sku, ))
         
         product = cursor.fetchone() # contains the existing product data as a tuple
 
@@ -238,10 +234,10 @@ def findMore(headers, updated_payload, index_secondary):
                 query += "last_update = %s"
                 values.append(last_update)
 
-                query += " WHERE barcode = %s"
-                values.append(barcode)
+                query += " WHERE sku = %s"
+                values.append(sku)
 
-                cursor.execute(query, tuple(values))
+                cursor.execute(query, (values, ))
         else:
             cursor.execute("""
                         INSERT INTO vendor_aah (
