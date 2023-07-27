@@ -196,6 +196,11 @@ def findMore(headers, updated_payload, index_secondary):
                 match index:
                     case 0:
                         print("CHECKING PRODUCT: ", item)
+                    case 1:
+                        if item != barcode:
+                            print(f"BARCODE | OLD: {item} -> NEW: {barcode}")
+                            query += "barcode = %s, "
+                            values.append(barcode)
                     case 2:
                         if item != price:
                             print(f"PRICE | OLD: {item} -> NEW: {price}")
