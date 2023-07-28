@@ -190,53 +190,55 @@ def findMore(headers, updated_payload, index_secondary):
             # this product exists in the vendor_aah table
             # generate a dynamic sql query to update the values for a product if they have changed
             query = "UPDATE vendor_aah SET "
-            values = []
+            values = [] # values which were updated
+            update_text = [] # text to output
 
             for index, item in enumerate(product):
                 match index:
-                    case 0:
-                        print("CHECKING PRODUCT: ", item)
                     case 1:
                         if item != barcode:
-                            print(f"BARCODE | OLD: {item} -> NEW: {barcode}")
+                            update_text.append(f"BARCODE {item} -> {barcode}")
                             query += "barcode = %s, "
                             values.append(barcode)
                     case 2:
                         if item != price:
-                            print(f"PRICE | OLD: {item} -> NEW: {price}")
+                            update_text.append(f"PRICE {item} -> {price}")
                             query += "price = %s, "
                             values.append(price)
                     case 3:
                         if item != trade_price:
-                            print(f"TRADE PRICE | OLD: {item} -> NEW: {trade_price}")
+                            update_text.append(f"TRADE PRICE {item} -> {trade_price}")
                             query += "trade_price = %s, "
                             values.append(trade_price)
                     case 4:
                         if item != mrrp:
-                            print(f"MRRP | OLD: {item} -> NEW: {mrrp}")
+                            update_text.append(f"MRRP {item} -> {mrrp}")
                             query += "mrrp = %s, "
                             values.append(mrrp)
                     case 5:
                         if item != available:
-                            print(f"AVAILABILITY | OLD: {item} -> NEW: {available}")
+                            update_text.append(f"AVAILABILITY {item} -> {available}")
                             query += "available = %s, "
                             values.append(available)
                     case 6:
                         if item != min_quantity:
-                            print(f"MINIMUM QUANTITY | OLD: {item} -> NEW: {min_quantity}")
+                            update_text.append(f"MINIMUM QUANTITY {item} -> {min_quantity}")
                             query += "min_quantity = %s, "
                             values.append(min_quantity)
                     case 7:
                         if item != outer_quantity:
-                            print(f"OUTER QUANTITY | OLD: {item} -> NEW: {outer_quantity}")
+                            update_text.append(f"OUTER QUANTITY {item} -> {outer_quantity}")
                             query += "outer_quantity = %s, "
                             values.append(outer_quantity)
-            print('\n')
 
             if values: # if there are changes...
-                # only change the last_update value if another field was updated
-                print(f"LAST UPDATE | OLD: {item} -> NEW: {last_update}")
-                query += "last_update = %s"
+                print(f"\nUPDATING PRODUCT: {name}")
+
+                for text in update_text:
+                    print(text)
+
+                print(f"LAST UPDATE {product[9]} -> {last_update}")
+                query += "last_update = %s" # only change if other fields were updated
                 values.append(last_update)
 
                 query += " WHERE sku = %s"
@@ -246,16 +248,16 @@ def findMore(headers, updated_payload, index_secondary):
         else:
             cursor.execute("""
                         INSERT INTO vendor_aah (
-                           name,
-                           barcode,
-                           price,
-                           trade_price,
-                           mrrp,
-                           available,
-                           min_quantity,
-                           outer_quantity,
-                           sku,
-                           last_update
+                            name,
+                            barcode,
+                            price,
+                            trade_price,
+                            mrrp,
+                            available,
+                            min_quantity,
+                            outer_quantity,
+                            sku,
+                            last_update
                         ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (name, barcode, price, trade_price, mrrp, available, min_quantity, outer_quantity, sku, last_update))
 
