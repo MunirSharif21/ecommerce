@@ -1,0 +1,5 @@
+# Ignore files related to DB login and API keys
+.env
+
+# Ignore CSV files which this script downloads
+*.csv
