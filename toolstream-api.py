@@ -1,10 +1,22 @@
 import os
+from dotenv import load_dotenv
 import requests
 import pandas as pd
 import time
 from sqlalchemy import create_engine
 import json
 from discord_webhook import DiscordWebhook, DiscordEmbed
+from sqlalchemy.orm import sessionmaker
+
+load_dotenv()
+DB_USER = os.getenv('DB_USER')
+DB_PASS = os.getenv('DB_PASS')
+
+API_SECRET = os.getenv('SHOPIFY_API_SECRET')
+AUTH_TOKEN = os.getenv('SHOPIFY_AUTH_TOKEN')
+
+engine = create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+Session = sessionmaker(bind=engine)
 
 def download_csv(url, filename):
     response = requests.get(url)
@@ -13,8 +25,8 @@ def download_csv(url, filename):
 
 def create_database(filename):
     df = pd.read_csv(filename)
-    db = create_engine("mysql+mysqlconnector://root:pass@localhost/catalog")
-    df.to_sql('vendor_toolstream', con=db, if_exists='append', index=False)
+    with Session() as session:
+        df.to_sql('vendor_toolstream', con=engine, if_exists='replace', index=False)
 
 # Function to send Discord webhook notification
 def send_discord_notification(product_code, column, old_value, new_value, discord_webhook_url):
@@ -40,7 +52,7 @@ def update_shopify_product(product_code, new_stock_value):
         }
     })
     headers = {
-        'X-Shopify-Access-Token': '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',
+        'X-Shopify-Access-Token': f'{API_SECRET}',
         'Content-Type': 'application/json'
     }
     response = requests.request("PUT", url, headers=headers, data=payload)
@@ -58,12 +70,13 @@ def delete_old_csv_files(directory, max_age_minutes):
                 print(f"Deleted old CSV file: {file_path}")
 
 def main():
-    url = "https://www.toolstream.com/api/v1/GetProducts?&token=a89500f03df78ec63546d79bc1197834&format=csv&language=en-GB"
+    url = f"https://www.toolstream.com/api/v1/GetProducts?&token={AUTH_TOKEN}&format=csv&language=en-GB"
     filename = "toolstream.csv"
     discord_webhook_url = "YOUR_DISCORD_WEBHOOK_URL_HERE"
 
     while True:
         filename = f"toolstream-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+
         download_csv(url, filename)
         create_database(filename)
         
