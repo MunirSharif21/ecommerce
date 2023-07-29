@@ -2,40 +2,19 @@ import os
 import requests
 import pandas as pd
 import time
+from sqlalchemy import create_engine
 import json
 from discord_webhook import DiscordWebhook, DiscordEmbed
 
-# Function to download the CSV file
 def download_csv(url, filename):
     response = requests.get(url)
     with open(filename, 'wb') as f:
         f.write(response.content)
 
-# Function to compare two CSV files
-def compare_csv_files(old_file, new_file, columns_to_monitor, discord_webhook_url):
-    df_old = pd.read_csv(old_file, usecols=columns_to_monitor + ["Product_Code"])
-    df_new = pd.read_csv(new_file, usecols=columns_to_monitor + ["Product_Code"])
-
-    # Find rows where values have changed
-    changed_rows = df_old[df_old[columns_to_monitor].ne(df_new[columns_to_monitor]).any(axis=1)]
-
-    if not changed_rows.empty:
-        for index, row in changed_rows.iterrows():
-            product_code = row["Product_Code"]
-            for col in columns_to_monitor:
-                old_value = row[col]
-                new_value = df_new.at[index, col]
-                if old_value != new_value:
-                    print(f"Change detected for Product_Code {product_code}, Column: {col}")
-                    print(f"Old Value: {old_value}, New Value: {new_value}")
-                    if col in ["Net_Price", "Promotional_Price"]:
-                        # Send Discord webhook notification
-                        send_discord_notification(product_code, col, old_value, new_value, discord_webhook_url)
-                    elif col == "Stock":
-                        # Update Shopify product using the Shopify API
-                        update_shopify_product(product_code, new_value)
-
-    return not df_old.equals(df_new)
+def create_database(filename):
+    df = pd.read_csv(filename)
+    db = create_engine("mysql+mysqlconnector://root:pass@localhost/catalog")
+    df.to_sql('vendor_toolstream', con=db, if_exists='append', index=False)
 
 # Function to send Discord webhook notification
 def send_discord_notification(product_code, column, old_value, new_value, discord_webhook_url):
@@ -78,28 +57,19 @@ def delete_old_csv_files(directory, max_age_minutes):
                 os.remove(file_path)
                 print(f"Deleted old CSV file: {file_path}")
 
-# Initial download
-url = "https://www.toolstream.com/api/v1/GetProducts?&token=a89500f03df78ec63546d79bc1197834&format=csv&language=en-GB"
-filename = "toolstream.csv"
-columns_to_monitor = ["Stock", "Net_Price", "Promotional_Price"]
-discord_webhook_url = "YOUR_DISCORD_WEBHOOK_URL_HERE"
+def main():
+    url = "https://www.toolstream.com/api/v1/GetProducts?&token=a89500f03df78ec63546d79bc1197834&format=csv&language=en-GB"
+    filename = "toolstream.csv"
+    discord_webhook_url = "YOUR_DISCORD_WEBHOOK_URL_HERE"
 
-download_csv(url, filename)
+    while True:
+        filename = f"toolstream-{time.strftime('%Y%m%d-%H%M%S')}.csv"
+        download_csv(url, filename)
+        create_database(filename)
+        
+        # Delete old CSV files older than 24 hours (1440 minutes)
+        delete_old_csv_files(".", 1440)
 
-# Monitor changes every 20 minutes
-while True:
-    time.sleep(1200)  # 20 minutes in seconds
-    new_filename = f"toolstream-{time.strftime('%Y%m%d-%H%M%S')}.csv"
-    download_csv(url, new_filename)
-
-    if compare_csv_files(filename, new_filename, columns_to_monitor, discord_webhook_url):
-        print("Changes detected in the monitored columns!")
-        # Do something with the changes (e.g., notify, process data, etc.)
-
-    # Update the filename to the latest version
-    filename = new_filename
-
-    # Delete old CSV files older than 24 hours (1440 minutes)
-    csv_directory = "."
-    max_age_minutes = 1440
-    delete_old_csv_files(csv_directory, max_age_minutes)
+        time.sleep(1200)
+if __name__ == "__main__":
+    main()

@@ -220,7 +220,7 @@ def findMore(headers, updated_payload, index_secondary):
 
     db.commit() # save changes
     db.close() # close connection
-    print(current_time(), "loading next page...")
+    print(current_time(), "\nloading next page...")
     return findMore(headers, updated_payload, index_secondary)
 
 def main():
