@@ -18,15 +18,24 @@ AUTH_TOKEN = os.getenv('SHOPIFY_AUTH_TOKEN')
 engine = create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
 Session = sessionmaker(bind=engine)
 
+def current_time():
+    return time.strftime("%Y-%m-%d %H:%M:%S")
+
 def download_csv(url, filename):
+    print(current_time(), 'downloading csv...')
     response = requests.get(url)
+    print(current_time(), 'finished download')
+    
     with open(filename, 'wb') as f:
         f.write(response.content)
 
 def create_database(filename):
+    print(current_time(), 'uploading csv to database...')
     df = pd.read_csv(filename)
+    
     with Session() as session:
         df.to_sql('vendor_toolstream', con=engine, if_exists='replace', index=False)
+    print(current_time(), 'finished updating database')
 
 # Function to send Discord webhook notification
 def send_discord_notification(product_code, column, old_value, new_value, discord_webhook_url):
@@ -83,6 +92,8 @@ def main():
         # Delete old CSV files older than 24 hours (1440 minutes)
         delete_old_csv_files(".", 1440)
 
+        print(current_time(), 'waiting 20 minutes...')
         time.sleep(1200)
+
 if __name__ == "__main__":
     main()
