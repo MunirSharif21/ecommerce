@@ -192,6 +192,7 @@ def findMore(headers, updated_payload, index_secondary):
             s = select(vendor_aah).where(vendor_aah.c.sku == sku)
             result = connection.execute(s)
             product = result.fetchone()
+            update_text = []
 
             # update values where changed for current product
             if product:
@@ -199,29 +200,44 @@ def findMore(headers, updated_payload, index_secondary):
                 values = {}
                 for index, item in enumerate(product):
                     if index == 1 and item != barcode:
+                        update_text.append(f"BARCODE {item} -> {barcode}")
                         values['barcode'] = barcode
                     elif index == 2 and item != price:
+                        update_text.append(f"PRICE {item} -> {price}")
                         values['price'] = price
                     elif index == 3 and item != trade_price:
+                        update_text.append(f"TRADE PRICE {item} -> {trade_price}")
                         values['trade_price'] = trade_price
                     elif index == 4 and item != mrrp:
+                        update_text.append(f"MRRP {item} -> {mrrp}")
                         values['mrrp'] = mrrp
                     elif index == 5 and item != available:
+                        update_text.append(f"AVAILABILITY {item} -> {available}")
                         values['available'] = available
                     elif index == 6 and item != min_quantity:
+                        update_text.append(f"MINIMUM QUANTITY {item} -> {min_quantity}")
                         values['min_quantity'] = min_quantity
                     elif index == 7 and item != outer_quantity:
+                        update_text.append(f"OUTER QUANTITY {item} -> {outer_quantity}")
                         values['outer_quantity'] = outer_quantity
 
                 if values:
                     # only update the changed values where the sku matches in database
+                    print(f"\nUPDATING PRODUCT: {name} ({sku})")
+
+                    for text in update_text:
+                        print(text)
+                    print(f"LAST UPDATE {product[9]} -> {last_update}")
+                    values['last_update'] = last_update
+
                     stmt = stmt.where(vendor_aah.c.sku == sku).values(**values)
                     connection.execute(stmt)
             else:
+                print(f"\nADDING NEW PRODUCT: {name} ({sku})")
                 stmt = insert(vendor_aah).values(name=name, barcode=barcode, price=price, trade_price=trade_price, mrrp=mrrp, available=available, min_quantity=min_quantity, outer_quantity=outer_quantity, sku=sku, last_update=last_update)
                 connection.execute(stmt)
 
-    print(current_time(), "loading next page...")
+    print("\n" + current_time(), "loading next page...")
     return findMore(headers, updated_payload, index_secondary)
 
 def main():
