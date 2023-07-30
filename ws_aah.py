@@ -149,7 +149,6 @@ def findMore(headers, updated_payload, index_secondary):
     product_list = response_data[0]['result']['data']['v']['productList']['v']
 
     metadata = sqlalchemy.MetaData() # holds table definitions
-
     vendor_aah = sqlalchemy.Table(
         'vendor_aah', metadata,
         sqlalchemy.Column('name', sqlalchemy.String(255)),
@@ -163,82 +162,60 @@ def findMore(headers, updated_payload, index_secondary):
         sqlalchemy.Column('sku', sqlalchemy.String(255), unique=True),
         sqlalchemy.Column('last_update', sqlalchemy.DateTime)
     )
-
     # checkfirst=True ensures the table is only created if it doesn't exist
     metadata.create_all(engine, checkfirst=True) 
 
+    def update_product_info(product_info, product_within_db, field_name, values):
+        # check if new value doenst match current
+        if product_info[field_name] != product_within_db[field_name]:
+            update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {product_info[field_name]}")
+            values[field_name] = product_info[field_name]
+
     # extract info for each product in the page
     for product in product_list:
-        name = product['v']['sfdcName']
-        barcode = product['v'].get('EAN1', '') or product['v'].get('EAN2', '')
-        price = product['v']['MRRP']
-
-        available = product['v']['availabilityMessage']
-        if available == 'In stock':
-            available = 1
-        else:
-            available = 0
-        
-        min_quantity = product['v']['minimumQuantity']
-        outer_quantity = product['v']['outerQuantity']
-        sku = product['v']['SKU']
-
-        trade_price = product['v']['tradePrice']
-        mrrp = product['v']['MRRP']
-
-        last_update = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        product_info = {
+            'name': product['v']['sfdcName'],
+            'barcode': product['v'].get('EAN1', '') or product['v'].get('EAN2', ''),
+            'price': product['v']['MRRP'],
+            'available': 1 if product['v']['availabilityMessage'] == 'In Stock' else 0,
+            'min_quantity': product['v']['minimumQuantity'],
+            'outer_quantity': product['v']['outerQuantity'],
+            'sku': product['v']['SKU'],
+            'trade_price': product['v']['tradePrice'],
+            'mrrp': product['v']['MRRP'],
+            'last_update': datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        }
 
         with engine.connect() as connection:
-            s = sqlalchemy.select(vendor_aah).where(vendor_aah.c.sku == sku)
+            # find product_within_db by sku
+            s = sqlalchemy.select(vendor_aah).where(vendor_aah.c.sku == product_info['sku'])
             result = connection.execute(s)
-            product = result.fetchone()
-            update_text = []
+            product_within_db = result.fetchone()._mapping # _mapping makes a dictionary
 
-            # update values where changed for current product
-            if product:
+            update_text = []
+            values = {}
+
+            if product_within_db:
                 stmt = sqlalchemy.update(vendor_aah)
-                values = {}
-                for index, item in enumerate(product):
-                    if index == 1 and item != barcode:
-                        update_text.append(f"BARCODE {item} -> {barcode}")
-                        values['barcode'] = barcode
-                    elif index == 2 and item != price:
-                        update_text.append(f"PRICE {item} -> {price}")
-                        values['price'] = price
-                    elif index == 3 and item != trade_price:
-                        update_text.append(f"TRADE PRICE {item} -> {trade_price}")
-                        values['trade_price'] = trade_price
-                    elif index == 4 and item != mrrp:
-                        update_text.append(f"MRRP {item} -> {mrrp}")
-                        values['mrrp'] = mrrp
-                    elif index == 5 and item != available:
-                        update_text.append(f"AVAILABILITY {item} -> {available}")
-                        values['available'] = available
-                    elif index == 6 and item != min_quantity:
-                        update_text.append(f"MINIMUM QUANTITY {item} -> {min_quantity}")
-                        values['min_quantity'] = min_quantity
-                    elif index == 7 and item != outer_quantity:
-                        update_text.append(f"OUTER QUANTITY {item} -> {outer_quantity}")
-                        values['outer_quantity'] = outer_quantity
+                for field_name in product_info.keys():
+                    update_product_info(product_info, product_within_db, field_name, values)
 
                 if values:
-                    # only update the changed values where the sku matches in database
-                    print(f"\nUPDATING PRODUCT: {name} ({sku})")
+                    # only update the changed values where the sku matches in the database
+                    print(f"\nUPDATED PRODUCT: {product_info['name']} ({product_info['sku']})")
 
                     for text in update_text:
                         print(text)
-                    print(f"LAST UPDATE {product[9]} -> {last_update}")
-                    values['last_update'] = last_update
 
-                    stmt = stmt.where(vendor_aah.c.sku == sku).values(**values)
+                    stmt = stmt.where(vendor_aah.c.sku == product_info['sku']).values(**values)
                     connection.execute(stmt)
             else:
-                print(f"\nADDING NEW PRODUCT: {name} ({sku})")
-                stmt = sqlalchemy.insert(vendor_aah).values(name=name, barcode=barcode, price=price, trade_price=trade_price, mrrp=mrrp, available=available, min_quantity=min_quantity, outer_quantity=outer_quantity, sku=sku, last_update=last_update)
+                print(f"\nADDING NEW PRODUCT: {product_info['name']} ({product_info['sku']})")
+                stmt = sqlalchemy.insert(vendor_aah).values(product_info)
                 connection.execute(stmt)
 
-    print("\n" + current_time(), "loading next page...")
-    return findMore(headers, updated_payload, index_secondary)
+        print("\n" + current_time(), "loading next page...")
+        return findMore(headers, updated_payload, index_secondary)
 
 def main():
     login()
