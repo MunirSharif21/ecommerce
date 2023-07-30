@@ -1,13 +1,11 @@
-# pharma-ws
+# webscrape_catalog
 
-Run this after cloning this repository and opening the location in terminal to automatically install all the neccessary modules
+This repo contains all the webscraping scripts which update product catalogs for the ecommerce websites
+
+To automatically install all the neccessary modules, cd to the project folder after cloning this repository and execute this command:
 
 `pip install -r requirements.txt`
 
-Use this module to generate a new requirements.txt
-
-`pip install pipreqs`
-
-This step is required when you import more modules (go inside project folder)
+Update the required modules when you have added more by executing this command:
 
 `pipreqs --force .`

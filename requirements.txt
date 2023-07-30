@@ -5,3 +5,4 @@ Requests==2.31.0
 selenium==4.10.0
 selenium_wire==5.1.0
 SQLAlchemy==2.0.19
+pipreqs==0.4.13
