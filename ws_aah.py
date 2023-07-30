@@ -155,7 +155,6 @@ def findMore(headers, updated_payload, index_secondary):
         sqlalchemy.Column('barcode', sqlalchemy.String(255)),
         sqlalchemy.Column('price', sqlalchemy.Float),
         sqlalchemy.Column('trade_price', sqlalchemy.Float),
-        sqlalchemy.Column('mrrp', sqlalchemy.Float),
         sqlalchemy.Column('available', sqlalchemy.Boolean),
         sqlalchemy.Column('min_quantity', sqlalchemy.Integer),
         sqlalchemy.Column('outer_quantity', sqlalchemy.Integer),
@@ -182,7 +181,6 @@ def findMore(headers, updated_payload, index_secondary):
             'outer_quantity': product['v']['outerQuantity'],
             'sku': product['v']['SKU'],
             'trade_price': product['v']['tradePrice'],
-            'mrrp': product['v']['MRRP'],
             'last_update': datetime.now().strftime("%Y/%m/%d %H:%M:%S")
         }
 
