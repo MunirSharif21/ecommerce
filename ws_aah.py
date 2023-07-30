@@ -4,7 +4,7 @@ import time
 import requests
 from datetime import datetime
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, Table, Column, Integer, String, Float, Boolean, DateTime, MetaData, select, update, insert
+import sqlalchemy
 from sqlalchemy.sql import text
 from sqlalchemy.orm import sessionmaker
 from selenium import webdriver
@@ -22,7 +22,7 @@ DB_PASS = os.getenv('DB_PASS')
 AAH_USER = os.getenv('AAH_USER')
 AAH_PASS = os.getenv('AAH_PASS')
 
-engine = create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
 Session = sessionmaker(bind=engine)
 
 def current_time():
@@ -148,20 +148,20 @@ def findMore(headers, updated_payload, index_secondary):
     index_secondary = response_data[0]['result']['data']['v']['prodCurrentIndex']['v']['secondary']
     product_list = response_data[0]['result']['data']['v']['productList']['v']
 
-    metadata = MetaData() # holds table definitions
+    metadata = sqlalchemy.MetaData() # holds table definitions
 
-    vendor_aah = Table(
-    'vendor_aah', metadata, 
-    Column('name', String(255)), 
-    Column('barcode', String(255)), 
-    Column('price', Float), 
-    Column('trade_price', Float), 
-    Column('mrrp', Float), 
-    Column('available', Boolean), 
-    Column('min_quantity', Integer), 
-    Column('outer_quantity', Integer), 
-    Column('sku', String(255), unique=True), 
-    Column('last_update', DateTime)
+    vendor_aah = sqlalchemy.Table(
+        'vendor_aah', metadata,
+        sqlalchemy.Column('name', sqlalchemy.String(255)),
+        sqlalchemy.Column('barcode', sqlalchemy.String(255)),
+        sqlalchemy.Column('price', sqlalchemy.Float),
+        sqlalchemy.Column('trade_price', sqlalchemy.Float),
+        sqlalchemy.Column('mrrp', sqlalchemy.Float),
+        sqlalchemy.Column('available', sqlalchemy.Boolean),
+        sqlalchemy.Column('min_quantity', sqlalchemy.Integer),
+        sqlalchemy.Column('outer_quantity', sqlalchemy.Integer),
+        sqlalchemy.Column('sku', sqlalchemy.String(255), unique=True),
+        sqlalchemy.Column('last_update', sqlalchemy.DateTime)
     )
 
     # checkfirst=True ensures the table is only created if it doesn't exist
@@ -189,14 +189,14 @@ def findMore(headers, updated_payload, index_secondary):
         last_update = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
 
         with engine.connect() as connection:
-            s = select(vendor_aah).where(vendor_aah.c.sku == sku)
+            s = sqlalchemy.select(vendor_aah).where(vendor_aah.c.sku == sku)
             result = connection.execute(s)
             product = result.fetchone()
             update_text = []
 
             # update values where changed for current product
             if product:
-                stmt = update(vendor_aah)
+                stmt = sqlalchemy.update(vendor_aah)
                 values = {}
                 for index, item in enumerate(product):
                     if index == 1 and item != barcode:
@@ -234,7 +234,7 @@ def findMore(headers, updated_payload, index_secondary):
                     connection.execute(stmt)
             else:
                 print(f"\nADDING NEW PRODUCT: {name} ({sku})")
-                stmt = insert(vendor_aah).values(name=name, barcode=barcode, price=price, trade_price=trade_price, mrrp=mrrp, available=available, min_quantity=min_quantity, outer_quantity=outer_quantity, sku=sku, last_update=last_update)
+                stmt = sqlalchemy.insert(vendor_aah).values(name=name, barcode=barcode, price=price, trade_price=trade_price, mrrp=mrrp, available=available, min_quantity=min_quantity, outer_quantity=outer_quantity, sku=sku, last_update=last_update)
                 connection.execute(stmt)
 
     print("\n" + current_time(), "loading next page...")
