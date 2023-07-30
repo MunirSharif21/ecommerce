@@ -1,8 +1,12 @@
-from datetime import datetime
+import os
 import json
 import time
 import requests
-import mysql.connector
+from datetime import datetime
+from dotenv import load_dotenv
+import sqlalchemy
+from sqlalchemy.sql import text
+from sqlalchemy.orm import sessionmaker
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -11,6 +15,15 @@ from selenium.webdriver.support import expected_conditions as EC
 from seleniumwire import webdriver as wirewebdriver
 from seleniumwire import webdriver
 from selenium.webdriver.chrome.options import Options
+
+load_dotenv()
+DB_USER = os.getenv('DB_USER')
+DB_PASS = os.getenv('DB_PASS')
+AAH_USER = os.getenv('AAH_USER')
+AAH_PASS = os.getenv('AAH_PASS')
+
+engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+Session = sessionmaker(bind=engine)
 
 def current_time():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -35,8 +48,8 @@ def login():
     print(current_time(), 'Filling Credentials')
     username_field = driver.find_element(By.XPATH, "//input[@id='input-4']")
     password_field = driver.find_element(By.XPATH, "//input[@id='input-5']")
-    username_field.send_keys("Rachel1966")
-    password_field.send_keys("W1ndmillh2@")
+    username_field.send_keys(AAH_USER)
+    password_field.send_keys(AAH_PASS)
     print(current_time(), 'Submitting Credentials')
 
     # Submit the login form
@@ -135,136 +148,74 @@ def findMore(headers, updated_payload, index_secondary):
     index_secondary = response_data[0]['result']['data']['v']['prodCurrentIndex']['v']['secondary']
     product_list = response_data[0]['result']['data']['v']['productList']['v']
 
-    db = mysql.connector.connect(
-        user='root',
-        password='pass'
+    metadata = sqlalchemy.MetaData() # holds table definitions
+    vendor_aah = sqlalchemy.Table(
+        'vendor_aah', metadata,
+        sqlalchemy.Column('name', sqlalchemy.String(255)),
+        sqlalchemy.Column('barcode', sqlalchemy.String(255)),
+        sqlalchemy.Column('price', sqlalchemy.Float),
+        sqlalchemy.Column('trade_price', sqlalchemy.Float),
+        sqlalchemy.Column('mrrp', sqlalchemy.Float),
+        sqlalchemy.Column('available', sqlalchemy.Boolean),
+        sqlalchemy.Column('min_quantity', sqlalchemy.Integer),
+        sqlalchemy.Column('outer_quantity', sqlalchemy.Integer),
+        sqlalchemy.Column('sku', sqlalchemy.String(255), unique=True),
+        sqlalchemy.Column('last_update', sqlalchemy.DateTime)
     )
-    cursor = db.cursor()
-    cursor.execute('CREATE DATABASE IF NOT EXISTS catalog')
-    cursor.execute('USE catalog')
+    # checkfirst=True ensures the table is only created if it doesn't exist
+    metadata.create_all(engine, checkfirst=True) 
 
-    cursor.execute("""
-                   CREATE TABLE IF NOT EXISTS vendor_aah (
-                   name VARCHAR(255),
-                   barcode VARCHAR(255),
-                   price FLOAT,
-                   trade_price FLOAT,
-                   mrrp FLOAT,
-                   available BOOLEAN,
-                   min_quantity INT,
-                   outer_quantity INT,
-                   sku VARCHAR(255) UNIQUE,
-                   last_update DATETIME
-                   )
-                   """)
+    def update_product_info(product_info, product_within_db, field_name, values):
+        # check if new value doenst match current
+        if product_info[field_name] != product_within_db[field_name]:
+            update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {product_info[field_name]}")
+            values[field_name] = product_info[field_name]
 
+    # extract info for each product in the page
     for product in product_list:
-        name = product['v']['sfdcName']
-        barcode = product['v'].get('EAN1', '') or product['v'].get('EAN2', '')
-        price = product['v']['MRRP']
+        product_info = {
+            'name': product['v']['sfdcName'],
+            'barcode': product['v'].get('EAN1', '') or product['v'].get('EAN2', ''),
+            'price': product['v']['MRRP'],
+            'available': 1 if product['v']['availabilityMessage'] == 'In Stock' else 0,
+            'min_quantity': product['v']['minimumQuantity'],
+            'outer_quantity': product['v']['outerQuantity'],
+            'sku': product['v']['SKU'],
+            'trade_price': product['v']['tradePrice'],
+            'mrrp': product['v']['MRRP'],
+            'last_update': datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+        }
 
-        available = product['v']['availabilityMessage']
-        if available == 'In stock':
-            available = 1
-        else:
-            available = 0
-        
-        min_quantity = product['v']['minimumQuantity']
-        outer_quantity = product['v']['outerQuantity']
-        sku = product['v']['SKU']
+        with engine.connect() as connection:
+            # find product_within_db by sku
+            s = sqlalchemy.select(vendor_aah).where(vendor_aah.c.sku == product_info['sku'])
+            result = connection.execute(s)
+            product_within_db = result.fetchone()._mapping # _mapping makes a dictionary
 
-        trade_price = product['v']['tradePrice']
-        mrrp = product['v']['MRRP']
+            update_text = []
+            values = {}
 
-        last_update = datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            if product_within_db:
+                stmt = sqlalchemy.update(vendor_aah)
+                for field_name in product_info.keys():
+                    update_product_info(product_info, product_within_db, field_name, values)
 
-        cursor.execute("""
-                    SELECT *
-                    FROM vendor_aah
-                    WHERE sku = %s
-                    """, (sku, ))
-        
-        product = cursor.fetchone() # contains the existing product data as a tuple
+                if values:
+                    # only update the changed values where the sku matches in the database
+                    print(f"\nUPDATED PRODUCT: {product_info['name']} ({product_info['sku']})")
 
-        if product:
-            # this product exists in the vendor_aah table
-            # generate a dynamic sql query to update the values for a product if they have changed
-            query = "UPDATE vendor_aah SET "
-            values = [] # values which were updated
-            update_text = [] # text to output
+                    for text in update_text:
+                        print(text)
 
-            for index, item in enumerate(product):
-                match index:
-                    case 1:
-                        if item != barcode:
-                            update_text.append(f"BARCODE {item} -> {barcode}")
-                            query += "barcode = %s, "
-                            values.append(barcode)
-                    case 2:
-                        if item != price:
-                            update_text.append(f"PRICE {item} -> {price}")
-                            query += "price = %s, "
-                            values.append(price)
-                    case 3:
-                        if item != trade_price:
-                            update_text.append(f"TRADE PRICE {item} -> {trade_price}")
-                            query += "trade_price = %s, "
-                            values.append(trade_price)
-                    case 4:
-                        if item != mrrp:
-                            update_text.append(f"MRRP {item} -> {mrrp}")
-                            query += "mrrp = %s, "
-                            values.append(mrrp)
-                    case 5:
-                        if item != available:
-                            update_text.append(f"AVAILABILITY {item} -> {available}")
-                            query += "available = %s, "
-                            values.append(available)
-                    case 6:
-                        if item != min_quantity:
-                            update_text.append(f"MINIMUM QUANTITY {item} -> {min_quantity}")
-                            query += "min_quantity = %s, "
-                            values.append(min_quantity)
-                    case 7:
-                        if item != outer_quantity:
-                            update_text.append(f"OUTER QUANTITY {item} -> {outer_quantity}")
-                            query += "outer_quantity = %s, "
-                            values.append(outer_quantity)
+                    stmt = stmt.where(vendor_aah.c.sku == product_info['sku']).values(**values)
+                    connection.execute(stmt)
+            else:
+                print(f"\nADDING NEW PRODUCT: {product_info['name']} ({product_info['sku']})")
+                stmt = sqlalchemy.insert(vendor_aah).values(product_info)
+                connection.execute(stmt)
 
-            if values: # if there are changes...
-                print(f"\nUPDATING PRODUCT: {name}")
-
-                for text in update_text:
-                    print(text)
-
-                print(f"LAST UPDATE {product[9]} -> {last_update}")
-                query += "last_update = %s" # only change if other fields were updated
-                values.append(last_update)
-
-                query += " WHERE sku = %s"
-                values.append(sku)
-
-                cursor.execute(query, tuple(values))
-        else:
-            cursor.execute("""
-                        INSERT INTO vendor_aah (
-                            name,
-                            barcode,
-                            price,
-                            trade_price,
-                            mrrp,
-                            available,
-                            min_quantity,
-                            outer_quantity,
-                            sku,
-                            last_update
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (name, barcode, price, trade_price, mrrp, available, min_quantity, outer_quantity, sku, last_update))
-
-    db.commit() # save changes
-    db.close() # close connection
-    print(current_time(), "\nloading next page...")
-    return findMore(headers, updated_payload, index_secondary)
+        print("\n" + current_time(), "loading next page...")
+        return findMore(headers, updated_payload, index_secondary)
 
 def main():
     login()
