@@ -56,17 +56,6 @@ def update_shopify_product(product_code, new_stock_value):
     response = requests.request("PUT", url, headers=headers, data=payload)
     print(response.text)
 
-# Function to delete old CSV files
-def delete_old_csv_files(directory, max_age_minutes):
-    current_time = time.time()
-    for filename in os.listdir(directory):
-        if filename.endswith(".csv"):
-            file_path = os.path.join(directory, filename)
-            file_age_minutes = (current_time - os.path.getmtime(file_path)) / 60
-            if file_age_minutes > max_age_minutes:
-                os.remove(file_path)
-                print(f"Deleted old CSV file: {file_path}")
-
 def main():
     url = f"https://www.toolstream.com/api/v1/GetProducts?&token={AUTH_TOKEN}&format=csv&language=en-GB"
 
@@ -75,9 +64,6 @@ def main():
 
         download_csv(url, filename)
         create_database(filename)
-        
-        # Delete old CSV files older than 24 hours (1440 minutes)
-        delete_old_csv_files(".", 1440)
 
         print(current_time(), 'waiting 20 minutes...')
         time.sleep(1200)
