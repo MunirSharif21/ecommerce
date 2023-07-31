@@ -116,7 +116,6 @@ def update_shopify_product(product_code, new_stock_value):
 
 def main():
     url = "https://b2b.drapertools.com/products/pricefiles/draper_list_prices_uk.csv"
-    discord_webhook_url = "YOUR_DISCORD_WEBHOOK_URL_HERE"
 
     while True:
         filename = f"draper-{time.strftime('%Y%m%d-%H%M%S')}.csv"

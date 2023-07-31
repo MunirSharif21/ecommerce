@@ -5,7 +5,6 @@ import pandas as pd
 import time
 from sqlalchemy import create_engine
 import json
-from discord_webhook import DiscordWebhook, DiscordEmbed
 from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
@@ -36,16 +35,6 @@ def create_database(filename):
     with Session() as session:
         df.to_sql('vendor_toolstream', con=engine, if_exists='replace', index=False)
     print(current_time(), 'finished updating database')
-
-# Function to send Discord webhook notification
-def send_discord_notification(product_code, column, old_value, new_value, discord_webhook_url):
-    webhook = DiscordWebhook(url=discord_webhook_url)
-    embed = DiscordEmbed(title="Change Detected in Price",
-                         description=f"Product_Code: {product_code}\nColumn: {column}\nOld Value: {old_value}\nNew Value: {new_value}",
-                         color=242424)
-    webhook.add_embed(embed)
-    response = webhook.execute()
-    print(f"Discord webhook sent with status code: {response.status_code}")
 
 # Function to update Shopify product using the Shopify API
 def update_shopify_product(product_code, new_stock_value):
@@ -80,8 +69,6 @@ def delete_old_csv_files(directory, max_age_minutes):
 
 def main():
     url = f"https://www.toolstream.com/api/v1/GetProducts?&token={AUTH_TOKEN}&format=csv&language=en-GB"
-    filename = "toolstream.csv"
-    discord_webhook_url = "YOUR_DISCORD_WEBHOOK_URL_HERE"
 
     while True:
         filename = f"toolstream-{time.strftime('%Y%m%d-%H%M%S')}.csv"
