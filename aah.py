@@ -5,7 +5,6 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 import sqlalchemy
-from sqlalchemy.sql import text
 from sqlalchemy.orm import sessionmaker
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys

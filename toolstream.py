@@ -4,7 +4,6 @@ import requests
 import pandas as pd
 import time
 from sqlalchemy import create_engine
-import json
 from sqlalchemy.orm import sessionmaker
 
 load_dotenv()
