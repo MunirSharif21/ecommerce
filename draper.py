@@ -94,26 +94,6 @@ def update_catalog(vendor_draper, df):
                 connection.execute(stmt)
     print(current_time(), '\nfinished updating catalog')
 
-# Function to update Shopify product using the Shopify API
-def update_shopify_product(product_code, new_stock_value):
-    url = f"https://boffer-3019.myshopify.com/admin/api/2023-07/products/{product_code}.json"
-    payload = json.dumps({
-        "product": {
-            "id": product_code,
-            "variants": [
-                {
-                    "inventory_quantity": new_stock_value
-                }
-            ]
-        }
-    })
-    headers = {
-        'X-Shopify-Access-Token': {API_SECRET},
-        'Content-Type': 'application/json'
-    }
-    response = requests.request("PUT", url, headers=headers, data=payload)
-    print(response.text)
-
 def main():
     url = "https://b2b.drapertools.com/products/pricefiles/draper_list_prices_uk.csv"
 
