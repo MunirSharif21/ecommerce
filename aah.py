@@ -2,7 +2,6 @@ import os
 import json
 import time
 import requests
-from datetime import datetime
 from dotenv import load_dotenv
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
@@ -26,7 +25,7 @@ engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@l
 Session = sessionmaker(bind=engine)
 
 def current_time():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return time.now().strftime("%Y-%m-%d %H:%M:%S")
 
 def login():
     chrome_options = Options()
@@ -181,7 +180,7 @@ def findMore(headers, updated_payload, index_secondary):
             'outer_quantity': product['v']['outerQuantity'],
             'sku': product['v']['SKU'],
             'trade_price': product['v']['tradePrice'],
-            'last_update': datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+            'last_update': time.now().strftime("%Y/%m/%d %H:%M:%S")
         }
 
         with engine.connect() as connection:
