@@ -5,6 +5,8 @@ import requests
 from dotenv import load_dotenv
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy_utils import database_exists, create_database
+
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
@@ -22,6 +24,10 @@ AAH_USER = os.getenv('AAH_USER')
 AAH_PASS = os.getenv('AAH_PASS')
 
 engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+
+if not database_exists(engine.url):
+    create_database(engine.url)
+
 Session = sessionmaker(bind=engine)
 
 def current_time():
@@ -161,7 +167,7 @@ def findMore(headers, updated_payload, index_secondary):
         sqlalchemy.Column('last_update', sqlalchemy.DateTime)
     )
     # checkfirst=True ensures the table is only created if it doesn't exist
-    metadata.create_all(engine, checkfirst=True) 
+    metadata.create_all(engine, checkfirst=True)
 
     def update_product_info(product_info, product_within_db, field_name, values):
         # check if new value doenst match current

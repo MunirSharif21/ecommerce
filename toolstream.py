@@ -5,13 +5,19 @@ import pandas as pd
 import time
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy_utils import database_exists, create_database
 
 load_dotenv()
 DB_USER = os.getenv('DB_USER')
 DB_PASS = os.getenv('DB_PASS')
+
 AUTH_TOKEN = os.getenv('TOOLSTREAM_AUTH_TOKEN')
 
 engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+
+if not database_exists(engine.url):
+    create_database(engine.url)
+
 Session = sessionmaker(bind=engine)
 
 def current_time():
@@ -52,7 +58,9 @@ def update_database(filename):
     metadata.create_all(engine, checkfirst=True)
     
     with Session() as session:
-        df.to_sql('vendor_toolstream', con=engine, if_exists='append', index=False)
+        count = session.query(sqlalchemy.func.count(vendor_toolstream.c.product_code)).scalar()
+        if not count:
+            df.to_sql('vendor_toolstream', con=engine, if_exists='append', index=False)
     return update_catalog(vendor_toolstream, df)
 
 def check_product_data(row, field_name, product_within_db, update_text, values):
