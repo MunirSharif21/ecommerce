@@ -1,5 +1,4 @@
 import os
-import json
 import time
 import requests
 import time
@@ -7,13 +6,19 @@ from dotenv import load_dotenv
 import sqlalchemy
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy_utils import database_exists, create_database
 
 load_dotenv()
 DB_USER = os.getenv('DB_USER')
 DB_PASS = os.getenv('DB_PASS')
+
 API_SECRET = os.getenv('SHOPIFY_API_SECRET')
 
 engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+
+if not database_exists(engine.url):
+    create_database(engine.url)
+
 Session = sessionmaker(bind=engine)
 
 def current_time():
@@ -51,7 +56,9 @@ def update_database(filename):
     metadata.create_all(engine, checkfirst=True)
 
     with Session() as session:
-        df.to_sql('vendor_draper', con=engine, if_exists='append', index=False)
+        count = session.query(sqlalchemy.func.count(vendor_draper.c.bar_code)).scalar()
+        if not count:
+            df.to_sql('vendor_draper', con=engine, if_exists='append', index=False)
     return update_catalog(vendor_draper, df)
 
 def check_product_data(row, field_name, product_within_db, update_text, values):
@@ -94,29 +101,8 @@ def update_catalog(vendor_draper, df):
                 connection.execute(stmt)
     print(current_time(), '\nfinished updating catalog')
 
-# Function to update Shopify product using the Shopify API
-def update_shopify_product(product_code, new_stock_value):
-    url = f"https://boffer-3019.myshopify.com/admin/api/2023-07/products/{product_code}.json"
-    payload = json.dumps({
-        "product": {
-            "id": product_code,
-            "variants": [
-                {
-                    "inventory_quantity": new_stock_value
-                }
-            ]
-        }
-    })
-    headers = {
-        'X-Shopify-Access-Token': {API_SECRET},
-        'Content-Type': 'application/json'
-    }
-    response = requests.request("PUT", url, headers=headers, data=payload)
-    print(response.text)
-
 def main():
     url = "https://b2b.drapertools.com/products/pricefiles/draper_list_prices_uk.csv"
-    discord_webhook_url = "YOUR_DISCORD_WEBHOOK_URL_HERE"
 
     while True:
         filename = f"draper-{time.strftime('%Y%m%d-%H%M%S')}.csv"
