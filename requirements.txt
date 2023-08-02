@@ -2,7 +2,7 @@ discord_webhook==1.2.1
 pandas==2.0.3
 python-dotenv==1.0.0
 Requests==2.31.0
-selenium==4.10.0
+selenium==4.11.2
 selenium_wire==5.1.0
 SQLAlchemy==2.0.19
-pipreqs==0.4.13
+SQLAlchemy_Utils==0.41.1
