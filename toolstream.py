@@ -6,6 +6,7 @@ import time
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database
+from shopify_api import update_shopify_price, update_shopify_stock
 
 load_dotenv()
 DB_USER = os.getenv('DB_USER')
@@ -67,6 +68,13 @@ def update_database(filename):
 
 def check_product_data(row, field_name, product_within_db, update_text, values):
     if pd.notnull(row[field_name]) and row[field_name] != product_within_db[field_name]:
+
+        if field_name == 'net_price':
+            update_shopify_price(row['product_code'], row['net_price'])
+    
+        if field_name == 'stock':
+            update_shopify_stock(row['product_code'], row['stock'])
+
         update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {row[field_name]}")
         values[field_name] = row[field_name]
 
