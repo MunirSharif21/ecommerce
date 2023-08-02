@@ -31,7 +31,7 @@ if not database_exists(engine.url):
 Session = sessionmaker(bind=engine)
 
 def current_time():
-    return time.now().strftime("%Y-%m-%d %H:%M:%S")
+    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 def login():
     chrome_options = Options()
@@ -111,6 +111,13 @@ def hijack(sel_requests):
             updated_payload = json.dumps(payload_dict)
 
             return findMore(headers, updated_payload, index_secondary)
+        
+def update_product_info(product_info, product_within_db, field_name, update_text, values):
+    # check if new value doenst match current
+    if product_info[field_name] != product_within_db[field_name]:
+        # FIELD OLD -> NEW
+        update_text.append(f"{field_name.upper()} {str(product_within_db[field_name])} -> {product_info[field_name]}")
+        values[field_name] = product_info[field_name]
 
 def findMore(headers, updated_payload, index_secondary):
     """
@@ -142,9 +149,8 @@ def findMore(headers, updated_payload, index_secondary):
         print(current_time(), "Received statusCode 402. Restarting...")
         if not hasattr(findMore, 'restart_attempted'):
             findMore.restart_attempted = True
-            main()  # Restart the process by calling the main function
-            return  # Return to stop the current execution of findMore
-
+            return main() # Restart the process by calling the main function
+        
     # Reset the restart_attempted flag if it was set before
     if hasattr(findMore, 'restart_attempted'):
         delattr(findMore, 'restart_attempted')
@@ -169,12 +175,6 @@ def findMore(headers, updated_payload, index_secondary):
     # checkfirst=True ensures the table is only created if it doesn't exist
     metadata.create_all(engine, checkfirst=True)
 
-    def update_product_info(product_info, product_within_db, field_name, values):
-        # check if new value doenst match current
-        if product_info[field_name] != product_within_db[field_name]:
-            update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {product_info[field_name]}")
-            values[field_name] = product_info[field_name]
-
     # extract info for each product in the page
     for product in product_list:
         product_info = {
@@ -186,14 +186,14 @@ def findMore(headers, updated_payload, index_secondary):
             'outer_quantity': product['v']['outerQuantity'],
             'sku': product['v']['SKU'],
             'trade_price': product['v']['tradePrice'],
-            'last_update': time.now().strftime("%Y/%m/%d %H:%M:%S")
+            'last_update': time.strftime("%Y/%m/%d %H:%M:%S")
         }
 
         with engine.connect() as connection:
             # find product_within_db by sku
             s = sqlalchemy.select(vendor_aah).where(vendor_aah.c.sku == product_info['sku'])
             result = connection.execute(s)
-            product_within_db = result.fetchone()._mapping # _mapping makes a dictionary
+            product_within_db = result.fetchone()
 
             update_text = []
             values = {}
@@ -201,21 +201,28 @@ def findMore(headers, updated_payload, index_secondary):
             if product_within_db:
                 stmt = sqlalchemy.update(vendor_aah)
                 for field_name in product_info.keys():
-                    update_product_info(product_info, product_within_db, field_name, values)
+                    if field_name != 'last_update': # dont check if last_update has been changed because it will always be different
+                        update_product_info(product_info, product_within_db._mapping, field_name, update_text, values)
 
                 if values:
                     # only update the changed values where the sku matches in the database
                     print(f"\nUPDATED PRODUCT: {product_info['name']} ({product_info['sku']})")
+
+                    # show last update datetime and new update datetime if there were any changes (when values is greater than 0)
+                    update_text.append(f"LAST UPDATE: {product_within_db['last_update']} -> {product_info['last_update']}")
+                    values['last_update'] = product_info['last_update']
 
                     for text in update_text:
                         print(text)
 
                     stmt = stmt.where(vendor_aah.c.sku == product_info['sku']).values(**values)
                     connection.execute(stmt)
+                    connection.commit()
             else:
                 print(f"\nADDING NEW PRODUCT: {product_info['name']} ({product_info['sku']})")
                 stmt = sqlalchemy.insert(vendor_aah).values(product_info)
                 connection.execute(stmt)
+                connection.commit()
 
         print("\n" + current_time(), "loading next page...")
         return findMore(headers, updated_payload, index_secondary)

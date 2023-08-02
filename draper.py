@@ -38,7 +38,7 @@ def update_database(filename):
     df.columns = df.columns.str.lower().str.replace(' ', '_') # fix column names
 
     metadata = sqlalchemy.MetaData()
-    vendor_draper = sqlalchemy.Table(
+    vendor = sqlalchemy.Table(
         'vendor_draper', metadata,
         sqlalchemy.Column('bar_code', sqlalchemy.BigInteger),
         sqlalchemy.Column('stock_no', sqlalchemy.Integer),
@@ -56,21 +56,23 @@ def update_database(filename):
     metadata.create_all(engine, checkfirst=True)
 
     with Session() as session:
-        count = session.query(sqlalchemy.func.count(vendor_draper.c.bar_code)).scalar()
+        count = session.query(sqlalchemy.func.count(vendor.c.bar_code)).scalar()
         if not count:
-            df.to_sql('vendor_draper', con=engine, if_exists='append', index=False)
-    return update_catalog(vendor_draper, df)
+            print(current_time(), "table is empty")
+            df.to_sql(vendor.fullname, con=engine, if_exists='append', index=False, chunksize=500)
+            return print(current_time(), "entire csv appended")
+    return update_catalog(vendor, df)
 
 def check_product_data(row, field_name, product_within_db, update_text, values):
     if pd.notnull(row[field_name]) and row[field_name] != product_within_db[field_name]:
         update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {row[field_name]}")
         values[field_name] = row[field_name]
 
-def update_catalog(vendor_draper, df):
+def update_catalog(vendor, df):
     print(current_time(), 'start updating catalog...')
     with engine.connect() as connection:
         # Make a single query to get all products
-        s = sqlalchemy.select(vendor_draper)
+        s = sqlalchemy.select(vendor)
         result = connection.execute(s)
 
         # Save products to a dictionary for faster lookup
@@ -86,20 +88,22 @@ def update_catalog(vendor_draper, df):
             values = {}
 
             if product_within_db:
-                stmt = sqlalchemy.update(vendor_draper)
+                stmt = sqlalchemy.update(vendor)
                 for field_name in df.columns:
                     check_product_data(row, field_name, product_within_db, update_text, values)
                 if values:
                     print(f"\nUPDATED PRODUCT: {row['item_description']} ({row['bar_code']})")
                     for text in update_text:
                         print(text)
-                    stmt = stmt.where(vendor_draper.c.bar_code == barcode).values(**values)
+                    stmt = stmt.where(vendor.c.bar_code == barcode).values(**values)
                     connection.execute(stmt)
+                    connection.commit()
             else:
                 print(f"\nADDING NEW PRODUCT: {row['item_description']} ({row['bar_code']})")
-                stmt = sqlalchemy.insert(vendor_draper).values(row)
+                stmt = sqlalchemy.insert(vendor).values(row)
                 connection.execute(stmt)
-    print(current_time(), '\nfinished updating catalog')
+                connection.commit()
+    print(current_time(), 'finished updating catalog')
 
 def main():
     url = "https://b2b.drapertools.com/products/pricefiles/draper_list_prices_uk.csv"

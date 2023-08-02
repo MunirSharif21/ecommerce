@@ -3,3 +3,6 @@
 
 # Ignore CSV files which this script downloads
 *.csv
+
+# Ignore files such as 'test', 'test_feature', 'testExample', etc. irrespective of their location in the directory
+**/*test*
