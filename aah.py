@@ -193,7 +193,7 @@ def findMore(headers, updated_payload, index_secondary):
             # find product_within_db by sku
             s = sqlalchemy.select(vendor_aah).where(vendor_aah.c.sku == product_info['sku'])
             result = connection.execute(s)
-            product_within_db = result.fetchone()._mapping # _mapping makes a dictionary
+            product_within_db = result.fetchone()
 
             update_text = []
             values = {}
@@ -202,7 +202,7 @@ def findMore(headers, updated_payload, index_secondary):
                 stmt = sqlalchemy.update(vendor_aah)
                 for field_name in product_info.keys():
                     if field_name != 'last_update': # dont check if last_update has been changed because it will always be different
-                        update_product_info(product_info, product_within_db, field_name, update_text, values)
+                        update_product_info(product_info, product_within_db._mapping, field_name, update_text, values)
 
                 if values:
                     # only update the changed values where the sku matches in the database
