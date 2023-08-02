@@ -39,7 +39,7 @@ def update_database(filename):
     df.columns = df.columns.str.lower()
     
     metadata = sqlalchemy.MetaData()
-    vendor_toolstream = sqlalchemy.Table(
+    vendor = sqlalchemy.Table(
         'vendor_toolstream', metadata,
         sqlalchemy.Column('product_code', sqlalchemy.String(128)),
         sqlalchemy.Column('primary_description', sqlalchemy.String(128)),
@@ -58,23 +58,23 @@ def update_database(filename):
     metadata.create_all(engine, checkfirst=True)
     
     with Session() as session:
-        count = session.query(sqlalchemy.func.count(vendor_toolstream.c.product_code)).scalar()
+        count = session.query(sqlalchemy.func.count(vendor.c.product_code)).scalar()
         if not count:
             print(current_time(), "table is empty")
-            df.to_sql('vendor_toolstream', con=engine, if_exists='append', index=False, chunksize=500)
+            df.to_sql(vendor.fullname, con=engine, if_exists='append', index=False, chunksize=500)
             return print(current_time(), "entire csv appended")
-    return update_catalog(vendor_toolstream, df)
+    return update_catalog(vendor, df)
 
 def check_product_data(row, field_name, product_within_db, update_text, values):
     if pd.notnull(row[field_name]) and row[field_name] != product_within_db[field_name]:
         update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {row[field_name]}")
         values[field_name] = row[field_name]
 
-def update_catalog(vendor_toolstream, df):
+def update_catalog(vendor, df):
     print(current_time(), 'start updating catalog...')
     with engine.connect() as connection:
         # Make a single query to get all products
-        s = sqlalchemy.select(vendor_toolstream)
+        s = sqlalchemy.select(vendor)
         result = connection.execute(s)
 
         # Save products to a dictionary for faster lookup
@@ -90,19 +90,19 @@ def update_catalog(vendor_toolstream, df):
             values = {}
 
             if product_within_db:
-                stmt = sqlalchemy.update(vendor_toolstream)
+                stmt = sqlalchemy.update(vendor)
                 for field_name in df.columns:
                     check_product_data(row, field_name, product_within_db, update_text, values)
                 if values:
                     print(f"\nUPDATED PRODUCT: {row['primary_description']} ({row['product_code']})")
                     for text in update_text:
                         print(text)
-                    stmt = stmt.where(vendor_toolstream.c.product_code == product_code).values(**values)
+                    stmt = stmt.where(vendor.c.product_code == product_code).values(**values)
                     connection.execute(stmt)
                     connection.commit()
             else:
                 print(f"\nADDING NEW PRODUCT: {row['primary_description']} ({row['product_code']})")
-                stmt = sqlalchemy.insert(vendor_toolstream).values(row)
+                stmt = sqlalchemy.insert(vendor).values(row)
                 connection.execute(stmt)
                 connection.commit()
     print(current_time(), 'finished updating catalog')
