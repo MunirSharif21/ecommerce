@@ -31,7 +31,7 @@ if not database_exists(engine.url):
 Session = sessionmaker(bind=engine)
 
 def current_time():
-    return time.now().strftime("%Y-%m-%d %H:%M:%S")
+    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 def login():
     chrome_options = Options()
@@ -142,9 +142,8 @@ def findMore(headers, updated_payload, index_secondary):
         print(current_time(), "Received statusCode 402. Restarting...")
         if not hasattr(findMore, 'restart_attempted'):
             findMore.restart_attempted = True
-            main()  # Restart the process by calling the main function
-            return  # Return to stop the current execution of findMore
-
+            return main() # Restart the process by calling the main function
+        
     # Reset the restart_attempted flag if it was set before
     if hasattr(findMore, 'restart_attempted'):
         delattr(findMore, 'restart_attempted')
@@ -186,7 +185,7 @@ def findMore(headers, updated_payload, index_secondary):
             'outer_quantity': product['v']['outerQuantity'],
             'sku': product['v']['SKU'],
             'trade_price': product['v']['tradePrice'],
-            'last_update': time.now().strftime("%Y/%m/%d %H:%M:%S")
+            'last_update': time.strftime("%Y/%m/%d %H:%M:%S")
         }
 
         with engine.connect() as connection:
@@ -212,10 +211,12 @@ def findMore(headers, updated_payload, index_secondary):
 
                     stmt = stmt.where(vendor_aah.c.sku == product_info['sku']).values(**values)
                     connection.execute(stmt)
+                    connection.commit()
             else:
                 print(f"\nADDING NEW PRODUCT: {product_info['name']} ({product_info['sku']})")
                 stmt = sqlalchemy.insert(vendor_aah).values(product_info)
                 connection.execute(stmt)
+                connection.commit()
 
         print("\n" + current_time(), "loading next page...")
         return findMore(headers, updated_payload, index_secondary)
