@@ -60,7 +60,9 @@ def update_database(filename):
     with Session() as session:
         count = session.query(sqlalchemy.func.count(vendor_toolstream.c.product_code)).scalar()
         if not count:
-            df.to_sql('vendor_toolstream', con=engine, if_exists='append', index=False)
+            print(current_time(), "table is empty")
+            df.to_sql('vendor_toolstream', con=engine, if_exists='append', index=False, chunksize=500)
+            return print(current_time(), "entire csv appended")
     return update_catalog(vendor_toolstream, df)
 
 def check_product_data(row, field_name, product_within_db, update_text, values):
@@ -97,10 +99,12 @@ def update_catalog(vendor_toolstream, df):
                         print(text)
                     stmt = stmt.where(vendor_toolstream.c.product_code == product_code).values(**values)
                     connection.execute(stmt)
+                    connection.commit()
             else:
                 print(f"\nADDING NEW PRODUCT: {row['primary_description']} ({row['product_code']})")
                 stmt = sqlalchemy.insert(vendor_toolstream).values(row)
                 connection.execute(stmt)
+                connection.commit()
     print(current_time(), 'finished updating catalog')
 
 def main():

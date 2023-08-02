@@ -58,7 +58,9 @@ def update_database(filename):
     with Session() as session:
         count = session.query(sqlalchemy.func.count(vendor_draper.c.bar_code)).scalar()
         if not count:
-            df.to_sql('vendor_draper', con=engine, if_exists='append', index=False)
+            print(current_time(), "table is empty")
+            df.to_sql('vendor_draper', con=engine, if_exists='append', index=False, chunksize=500)
+            return print(current_time(), "entire csv appended")
     return update_catalog(vendor_draper, df)
 
 def check_product_data(row, field_name, product_within_db, update_text, values):
@@ -95,11 +97,13 @@ def update_catalog(vendor_draper, df):
                         print(text)
                     stmt = stmt.where(vendor_draper.c.bar_code == barcode).values(**values)
                     connection.execute(stmt)
+                    connection.commit()
             else:
                 print(f"\nADDING NEW PRODUCT: {row['item_description']} ({row['bar_code']})")
                 stmt = sqlalchemy.insert(vendor_draper).values(row)
                 connection.execute(stmt)
-    print(current_time(), '\nfinished updating catalog')
+                connection.commit()
+    print(current_time(), 'finished updating catalog')
 
 def main():
     url = "https://b2b.drapertools.com/products/pricefiles/draper_list_prices_uk.csv"
