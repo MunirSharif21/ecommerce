@@ -17,26 +17,21 @@ headers = {
     'Content-Type': 'application/json'
 }
 
-def send_discord_webhook_price(sku, new_price, product_id, variant_id):
+def send_discord_webhook(product_identifier, product_id, variant_id, field_name, field_value):
+    """
+    field_name: string e.g. "price" or "stock"
+    field_value: integer
+    """
+    if field_name == 'price':
+        field_value = "£" + field_value
+    
     webhook = DiscordWebhook(url='https://discord.com/api/webhooks/1134244504598216785/HASu2dQEm7xIMmRIBoxbxilPUn2pdgV1ya_RLc0nVjUoJZYGroJw5_FRXFElw5j8FZhq')
-    embed = DiscordEmbed(title=f'PRODUCT CHANGE: {sku} - Price', color='00ff00')
+    embed = DiscordEmbed(title=f'PRODUCT CHANGE: {product_identifier} - {field_name}', color='00ff00')
     embed.set_footer(text='TS Monitor - RSShop', icon_url='https://cdn.discordapp.com/attachments/802914537363865642/1004725175230668820/logo_1.png')
-    embed.add_embed_field(name='Product ID', value=f'```{product_id}```', inline=True)
-    embed.add_embed_field(name='Variant ID', value=f'```{variant_id}```', inline=True)
-    embed.add_embed_field(name='SKU', value=f'```{sku}```', inline=True)
-    embed.add_embed_field(name='Price', value=f'```{new_price}```', inline=True)
-
-    webhook.add_embed(embed)
-    webhook.execute()
-
-def send_discord_webhook_stock(sku, product_id, inventory_id, new_quantity):
-    webhook = DiscordWebhook(url='https://discord.com/api/webhooks/1134244504598216785/HASu2dQEm7xIMmRIBoxbxilPUn2pdgV1ya_RLc0nVjUoJZYGroJw5_FRXFElw5j8FZhq')
-    embed = DiscordEmbed(title=f'PRODUCT CHANGE: {sku} - Stock', color='00ff00')
-    embed.set_footer(text='TS Monitor - RSShop', icon_url='https://cdn.discordapp.com/attachments/802914537363865642/1004725175230668820/logo_1.png')
-    embed.add_embed_field(name='Product ID', value=f'```{product_id}```', inline=True)
-    embed.add_embed_field(name='Variant ID', value=f'```{inventory_id}```', inline=True)
-    embed.add_embed_field(name='SKU', value=f'```{sku}```', inline=True)
-    embed.add_embed_field(name='Stock', value=f'```{new_quantity}```', inline=True)
+    embed.add_embed_field(name='Product ID', value=f'{product_id}', inline=True)
+    embed.add_embed_field(name='Variant ID', value=f'{variant_id}', inline=True)
+    embed.add_embed_field(name='SKU', value=f'{product_identifier}', inline=True)
+    embed.add_embed_field(name=field_name, value=f'{field_value}', inline=True)
 
     webhook.add_embed(embed)
     webhook.execute()
@@ -75,9 +70,10 @@ def update_shopify_price(product_identifier, new_price):
     # Check the response status code to determine if the update was successful
     if response.status_code == 200:
         print(f"Price updated successfully for product ID {product_id} with variant {variant_id} SKU {product_identifier}")
-        send_discord_webhook_price(product_identifier, new_price, product_id, variant_id)
+        # send_discord_webhook_price(product_identifier, new_price, product_id, variant_id)
+        send_discord_webhook(product_identifier, product_id, variant_id, 'price', new_price)
     else:
-        print(f"Failed to update price for product ID {product_id} with variant {variant_id} SKU {product_identifier} . Status code: {response.status_code}, Response: {response.text}")
+        print(f"Failed to update price for product ID {product_id} with variant {variant_id} SKU {product_identifier}. Status code: {response.status_code}, Response: {response.text}")
 
 def update_shopify_stock(product_identifier, new_quantity):
     product_id, variant_id, inventory_id = get_product_id(product_identifier)
@@ -98,6 +94,7 @@ def update_shopify_stock(product_identifier, new_quantity):
     # Check the response status code to determine if the update was successful
     if response.status_code == 200:
         print(f"Stock updated successfully for inv ID {inventory_id}")
-        send_discord_webhook_stock(product_identifier, product_id, inventory_id, new_quantity)
+        send_discord_webhook(product_identifier, product_id, inventory_id, 'stock', new_quantity)
+
     else:
         print(f"Failed to update stock for inv ID {inventory_id}. Status code: {response.status_code}, Response: {response.text}")
