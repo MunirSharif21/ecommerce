@@ -111,6 +111,13 @@ def hijack(sel_requests):
             updated_payload = json.dumps(payload_dict)
 
             return findMore(headers, updated_payload, index_secondary)
+        
+def update_product_info(product_info, product_within_db, field_name, update_text, values):
+    # check if new value doenst match current
+    if product_info[field_name] != product_within_db[field_name]:
+        # FIELD OLD -> NEW
+        update_text.append(f"{field_name.upper()} {str(product_within_db[field_name])} -> {product_info[field_name]}")
+        values[field_name] = product_info[field_name]
 
 def findMore(headers, updated_payload, index_secondary):
     """
@@ -168,12 +175,6 @@ def findMore(headers, updated_payload, index_secondary):
     # checkfirst=True ensures the table is only created if it doesn't exist
     metadata.create_all(engine, checkfirst=True)
 
-    def update_product_info(product_info, product_within_db, field_name, values):
-        # check if new value doenst match current
-        if product_info[field_name] != product_within_db[field_name]:
-            update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {product_info[field_name]}")
-            values[field_name] = product_info[field_name]
-
     # extract info for each product in the page
     for product in product_list:
         product_info = {
@@ -200,11 +201,16 @@ def findMore(headers, updated_payload, index_secondary):
             if product_within_db:
                 stmt = sqlalchemy.update(vendor_aah)
                 for field_name in product_info.keys():
-                    update_product_info(product_info, product_within_db, field_name, values)
+                    if field_name != 'last_update': # dont check if last_update has been changed because it will always be different
+                        update_product_info(product_info, product_within_db, field_name, update_text, values)
 
                 if values:
                     # only update the changed values where the sku matches in the database
                     print(f"\nUPDATED PRODUCT: {product_info['name']} ({product_info['sku']})")
+
+                    # show last update datetime and new update datetime if there were any changes (when values is greater than 0)
+                    update_text.append(f"LAST UPDATE: {product_within_db['last_update']} -> {product_info['last_update']}")
+                    values['last_update'] = product_info['last_update']
 
                     for text in update_text:
                         print(text)
