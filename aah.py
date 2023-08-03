@@ -160,7 +160,7 @@ def findMore(headers, updated_payload, index_secondary):
     product_list = response_data[0]['result']['data']['v']['productList']['v']
 
     metadata = sqlalchemy.MetaData() # holds table definitions
-    vendor_aah = sqlalchemy.Table(
+    vendor = sqlalchemy.Table(
         'vendor_aah', metadata,
         sqlalchemy.Column('name', sqlalchemy.String(255)),
         sqlalchemy.Column('barcode', sqlalchemy.String(255)),
@@ -190,19 +190,23 @@ def findMore(headers, updated_payload, index_secondary):
         }
 
         with engine.connect() as connection:
-            # find product_within_db by sku
-            s = sqlalchemy.select(vendor_aah).where(vendor_aah.c.sku == product_info['sku'])
+            # Make a single query to get all products
+            s = sqlalchemy.select(vendor)
             result = connection.execute(s)
-            product_within_db = result.fetchone()
+            
+            # Save products to a dictionary for faster lookup
+            db_products = {row['sku']: row for row in result.mappings()}
+
+            product_within_db = db_products.get(product_info['sku'])
 
             update_text = []
             values = {}
 
             if product_within_db:
-                stmt = sqlalchemy.update(vendor_aah)
+                stmt = sqlalchemy.update(vendor)
                 for field_name in product_info.keys():
                     if field_name != 'last_update': # dont check if last_update has been changed because it will always be different
-                        update_product_info(product_info, product_within_db._mapping, field_name, update_text, values)
+                        update_product_info(product_info, product_within_db, field_name, update_text, values)
 
                 if values:
                     # only update the changed values where the sku matches in the database
@@ -215,17 +219,17 @@ def findMore(headers, updated_payload, index_secondary):
                     for text in update_text:
                         print(text)
 
-                    stmt = stmt.where(vendor_aah.c.sku == product_info['sku']).values(**values)
+                    stmt = stmt.where(vendor.c.sku == product_info['sku']).values(**values)
                     connection.execute(stmt)
                     connection.commit()
             else:
                 print(f"\nADDING NEW PRODUCT: {product_info['name']} ({product_info['sku']})")
-                stmt = sqlalchemy.insert(vendor_aah).values(product_info)
+                stmt = sqlalchemy.insert(vendor).values(product_info)
                 connection.execute(stmt)
                 connection.commit()
 
-        print("\n" + current_time(), "loading next page...")
-        return findMore(headers, updated_payload, index_secondary)
+    print("\n" + current_time(), "loading next page...")
+    return findMore(headers, updated_payload, index_secondary)
 
 def main():
     login()
