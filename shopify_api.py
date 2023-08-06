@@ -46,7 +46,7 @@ def get_product_id(product_identifier):
         return product_id, variant_id, inventory_id
 
 def update_shopify_price(product_identifier, new_price):
-    product_id, variant_id, inventory_id = get_product_id(product_identifier)
+    product_id, variant_id, _ = get_product_id(product_identifier)
 
     # Endpoint to update the product price in Shopify
     endpoint = f"{shop_url}/admin/api/2023-07/products/{product_id}.json"
