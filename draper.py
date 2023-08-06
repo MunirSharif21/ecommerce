@@ -65,14 +65,16 @@ def update_database(filename):
     return update_catalog(vendor, df)
 
 def check_product_data(row, field_name, product_within_db, update_text, values):
-    if pd.notnull(row[field_name]) and row[field_name] != product_within_db[field_name]:
-        
+    row[field_name] = row[field_name].fillna(None)
+
+    if row[field_name] != product_within_db[field_name]:
+
         if field_name == 'price':
             update_shopify_price(row['bar_code'], row['price'])
 
         if field_name == 'stock_no':
             update_shopify_stock(row['bar_code'], row['stock_no'])
-            
+        
         update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {row[field_name]}")
         values[field_name] = row[field_name]
 

@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database
+from shopify_api import update_shopify_price, update_shopify_stock
 
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -113,9 +114,16 @@ def hijack(sel_requests):
             return findMore(headers, updated_payload, index_secondary)
         
 def update_product_info(product_info, product_within_db, field_name, update_text, values):
-    # check if new value doenst match current
+    product_info[field_name] = product_info[field_name].fillna(None)
+
     if product_info[field_name] != product_within_db[field_name]:
-        # FIELD OLD -> NEW
+
+        if field_name == 'price':
+            update_shopify_price(product_info['sku'], product_info['price'])
+        
+        if field_name == 'available':
+            update_shopify_stock(product_info['sku'], 100 if product_info['available'] == 1 else 0)
+
         update_text.append(f"{field_name.upper()} {str(product_within_db[field_name])} -> {product_info[field_name]}")
         values[field_name] = product_info[field_name]
 
