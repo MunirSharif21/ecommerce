@@ -44,10 +44,14 @@ def get_product_id(product_identifier):
         variant_id = int(product_row.iloc[0]['Variant ID'])
         inventory_id = int(product_row.iloc[0]['Inventory Item ID'])
         return product_id, variant_id, inventory_id
+    else:
+        return None, None, None
 
 def update_shopify_price(product_identifier, new_price):
     product_id, variant_id, _ = get_product_id(product_identifier)
-
+    if not product_id and not variant_id:
+        return print("Could not update price for product which doesn't exist in the CSV")
+    
     # Endpoint to update the product price in Shopify
     endpoint = f"{shop_url}/admin/api/2023-07/products/{product_id}.json"
 
@@ -77,6 +81,8 @@ def update_shopify_price(product_identifier, new_price):
 
 def update_shopify_stock(product_identifier, new_quantity):
     product_id, _, inventory_id = get_product_id(product_identifier)
+    if not product_id and not inventory_id:
+        return print("Could not update stock for product which doesn't exist in the CSV")
 
     # Endpoint to update the product inventory quantity in Shopify
     endpoint = f"{shop_url}/admin/api/2023-07/inventory_levels/set.json"
