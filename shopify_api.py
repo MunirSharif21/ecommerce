@@ -76,7 +76,7 @@ def update_shopify_price(product_identifier, new_price):
         print(f"Failed to update price for product ID {product_id} with variant {variant_id} SKU {product_identifier}. Status code: {response.status_code}, Response: {response.text}")
 
 def update_shopify_stock(product_identifier, new_quantity):
-    product_id, variant_id, inventory_id = get_product_id(product_identifier)
+    product_id, _, inventory_id = get_product_id(product_identifier)
 
     # Endpoint to update the product inventory quantity in Shopify
     endpoint = f"{shop_url}/admin/api/2023-07/inventory_levels/set.json"
