@@ -24,7 +24,7 @@ DB_PASS = os.getenv('DB_PASS')
 AAH_USER = os.getenv('AAH_USER')
 AAH_PASS = os.getenv('AAH_PASS')
 
-engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+engine = sqlalchemy.create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@localhost/catalog")
 
 if not database_exists(engine.url):
     create_database(engine.url)

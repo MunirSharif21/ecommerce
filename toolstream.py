@@ -14,7 +14,7 @@ DB_PASS = os.getenv('DB_PASS')
 
 AUTH_TOKEN = os.getenv('TOOLSTREAM_AUTH_TOKEN')
 
-engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+engine = sqlalchemy.create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@localhost/catalog")
 
 if not database_exists(engine.url):
     create_database(engine.url)

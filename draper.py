@@ -1,7 +1,6 @@
 import os
 import time
 import requests
-import time
 from dotenv import load_dotenv
 import sqlalchemy
 import pandas as pd
@@ -15,7 +14,7 @@ DB_PASS = os.getenv('DB_PASS')
 
 API_SECRET = os.getenv('SHOPIFY_API_SECRET')
 
-engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+engine = sqlalchemy.create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@localhost/catalog")
 
 if not database_exists(engine.url):
     create_database(engine.url)
