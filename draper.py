@@ -1,12 +1,12 @@
 import os
 import time
 import requests
-import time
 from dotenv import load_dotenv
 import sqlalchemy
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy_utils import database_exists, create_database
+from shopify_api import update_shopify_price, update_shopify_stock
 
 load_dotenv()
 DB_USER = os.getenv('DB_USER')
@@ -14,7 +14,7 @@ DB_PASS = os.getenv('DB_PASS')
 
 API_SECRET = os.getenv('SHOPIFY_API_SECRET')
 
-engine = sqlalchemy.create_engine(f"mysql+mysqlconnector://{DB_USER}:{DB_PASS}@localhost/catalog")
+engine = sqlalchemy.create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@localhost/catalog")
 
 if not database_exists(engine.url):
     create_database(engine.url)
@@ -34,6 +34,7 @@ def download_csv(url, filename):
 
 def update_database(filename):
     df = pd.read_csv(filename).iloc[:, :-1] # remove last column
+    df = df.replace(float('nan'), None)
     df.drop('Catalogue Identifier', axis=1, inplace=True)
     df.columns = df.columns.str.lower().str.replace(' ', '_') # fix column names
 
@@ -63,10 +64,21 @@ def update_database(filename):
             return print(current_time(), "entire csv appended")
     return update_catalog(vendor, df)
 
-def check_product_data(row, field_name, product_within_db, update_text, values):
-    if pd.notnull(row[field_name]) and row[field_name] != product_within_db[field_name]:
-        update_text.append(f"{field_name.upper()} {product_within_db[field_name]} -> {row[field_name]}")
-        values[field_name] = row[field_name]
+def compare_product_data(row_product, db_product):
+    update_text, values = [], {}
+
+    for field, old_value in db_product.items():
+        if row_product[field] != old_value:
+            update_text.append(f"{field.upper()} {old_value} -> {row_product[field]}")
+            values[field] = row_product[field]
+
+            if field == 'price':
+                update_shopify_price(row_product['bar_code'], row_product['price'])
+
+            if field == 'stock_no':
+                update_shopify_stock(row_product['bar_code'], row_product['stock_no'])
+        
+    return values, update_text
 
 def update_catalog(vendor, df):
     print(current_time(), 'start updating catalog...')
@@ -78,31 +90,39 @@ def update_catalog(vendor, df):
         # Save products to a dictionary for faster lookup
         db_products = {row['bar_code']: row for row in result.mappings()}
 
-        for index, row in df.iterrows():
-            barcode = row['bar_code']
+        # Prepare list to hold insert statements
+        insert_stmts = []
+
+        for row_product in df.itertuples(index=False):
+            barcode = row_product.bar_code
             
             # Use dict for faster lookup, no db query is made in this loop
-            product_within_db = db_products.get(barcode)
+            db_product = db_products.get(barcode)
 
-            update_text = []
-            values = {}
+            if db_product:
+                values, update_text = compare_product_data(row_product._asdict(), db_product)
 
-            if product_within_db:
-                stmt = sqlalchemy.update(vendor)
-                for field_name in df.columns:
-                    check_product_data(row, field_name, product_within_db, update_text, values)
                 if values:
-                    print(f"\nUPDATED PRODUCT: {row['item_description']} ({row['bar_code']})")
+                    stmt = sqlalchemy.update(vendor)
+                    print(f"\nUPDATING PRODUCT: {row_product.item_description} ({barcode})")
+
                     for text in update_text:
                         print(text)
+
                     stmt = stmt.where(vendor.c.bar_code == barcode).values(**values)
                     connection.execute(stmt)
                     connection.commit()
             else:
-                print(f"\nADDING NEW PRODUCT: {row['item_description']} ({row['bar_code']})")
-                stmt = sqlalchemy.insert(vendor).values(row)
-                connection.execute(stmt)
-                connection.commit()
+                stmt = sqlalchemy.update(vendor)
+                print(f"\nADDING NEW PRODUCT: {row_product.item_description} ({barcode})")
+                stmt = sqlalchemy.insert(vendor).values(row_product._asdict())
+                insert_stmts.append(stmt)
+
+        if insert_stmts:
+            # Concatenate all the insert statements into a single SQL expression
+            connection.execute(sqlalchemy.union_all(*insert_stmts))
+            connection.commit()
+
     print(current_time(), 'finished updating catalog')
 
 def main():
